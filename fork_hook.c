@@ -93,37 +93,20 @@ void remove(char* string) {
 		} while (*string++ = *data++);
 }
 
-inline void mywrite_cr0(unsigned long cr0) {
-  asm volatile("mov %0,%%cr0" : "+r"(cr0), "+m"(__force_order));
-}
-
-void enable_write_protection(void) {
-  unsigned long cr0 = read_cr0();
-  set_bit(16, &cr0);
-  mywrite_cr0(cr0);
-}
-
-void disable_write_protection(void) {
-  unsigned long cr0 = read_cr0();
-  clear_bit(16, &cr0);
-  mywrite_cr0(cr0);
-}
-
 int fork_counter = 0;
 long (*original_sys_fork) (struct pt_regs *regs);
 
 asmlinkage long evil_fork (const struct pt_regs *regs) {
 	fork_counter++;
-	/*printk(KERN_INFO "YOU HAVE BEEN HOOKED!\n");*/
+
 	if (fork_counter%10 == 0)
 	{
-		printk(KERN_INFO "fork counter: %d \n", fork_counter);
+		printk(KERN_INFO "Fork Was Called: %d times\n", fork_counter);
 	}
 
 	original_sys_fork(regs);
 }
 
-unsigned long *syscall_table;
 unsigned long *syscallTableAddress;
 
 int init_module (void) {
@@ -143,7 +126,6 @@ int init_module (void) {
 	kernelVersion[strlen(kernelVersion)] = '\0';
 	sysmapfile[strlen(sysmapfile)] = '\0';
 	
-	/*sysmapfile = "/boot/System.map-4.19.0-13-amd64";*/
 	file = open_file_for_read("/proc/version");
 	x = read_from_file_until(file, kernelVersion, 1024, '(');
 	close_file(file);
@@ -153,7 +135,6 @@ int init_module (void) {
 	remove(kernelVersion);
 	strcat (sysmapfile, kernelVersion);
 	
-	printk(KERN_INFO "System Map: %s\n", sysmapfile);
 	sysmap = open_file_for_read(sysmapfile);
 	syscallAddress = kmalloc (100, GFP_DMA | GFP_KERNEL);
 	
@@ -177,33 +158,13 @@ int init_module (void) {
 	}
 	close_file(sysmap);
 
-	
-
-	/*syscall_table = (void*) kallsyms_lookup_name("sys_call_table");
-	printk(KERN_INFO "sys_call address from kall: %lx\n", syscall_table);*/
-	/*if (syscall_table == NULL) {
-		printk (KERN_INFO "Could not find sys_call_table\n");
-	} else {
-		printk(KERN_INFO "sys_fork address: %lx\n", syscall_table[__NR_clone]);
-	}*/
-
-	/*disable_write_protection();*/
-
 	write_cr0(read_cr0() & (~0x10000));
 
 	original_sys_fork = syscallTableAddress[__NR_clone];
 
-	
-
-	/*set_page_rw(syscall_table);*/
-
 	syscallTableAddress[__NR_clone] = evil_fork;
 
-	/*original_sys_fork = (void *) xchg(&syscall_table[__NR_clone],evil_fork);*/
-
 	write_cr0(read_cr0() | 0x10000);
-
-	/*enable_write_protection();*/
 
 	return 0;
 }
@@ -211,16 +172,10 @@ int init_module (void) {
 void cleanup_module(void) {
 	
 	write_cr0(read_cr0() & (~0x10000));
-
-	/*disable_write_protection();*/
 	
 	syscallTableAddress[__NR_clone] = (void*) original_sys_fork;
-
-	/*xchg(&syscall_table[__NR_clone],original_sys_fork);*/
 	
 	write_cr0(read_cr0() | 0x10000);
-
-	/*enable_write_protection();*/
 
 	printk(KERN_INFO "Module Removed\n");
 }
